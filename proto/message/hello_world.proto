@@ -1,0 +1,26 @@
+﻿syntax = "proto3";
+
+package hello;
+
+import "google/protobuf/timestamp.proto";
+
+service HelloWorldService {
+  rpc SayHello (HelloRequest) returns (HelloResponse);
+  rpc GetTime (TimeRequest) returns (TimeResponse);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloResponse {
+  string message = 1;
+}
+
+message TimeRequest {
+  bool current_time = 1;
+}
+
+message TimeResponse {
+  google.protobuf.Timestamp timestamp = 1;
+}
