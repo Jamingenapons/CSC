@@ -8,6 +8,7 @@ use egui::{
 
 use crate::widgets::MyDock;
 
+// use hello_egui::{}
 
 pub fn render_profile(app: &mut ClientApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
     egui::CentralPanel::default().show(ctx, |ui| {

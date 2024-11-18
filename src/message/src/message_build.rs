@@ -3,15 +3,10 @@
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{msg::Msg, Message, MessageType};
-
-
-
-
+use crate::{msg::Msg, Message, MessageType, MsgInfo};
 
 pub struct MsgBuilder {
-    msg_type: Option<MessageType>,
-    uid: Option<Uuid>,
+    info: Option<MsgInfo>,
     data: Option<Box<dyn Message>>,
     row_data: Option<Vec<u8>>,
 }
@@ -19,15 +14,14 @@ pub struct MsgBuilder {
 impl MsgBuilder {
     pub fn new() -> Self {
         MsgBuilder {
-            msg_type: None,
-            uid: None,
+            info: None,
             data: None,
             row_data: None,
         }
     }
 
     pub fn msg_type(mut self, msg_type: MessageType) -> Self {
-        self.msg_type = Some(msg_type);
+        self.info = Some(MsgInfo::new(msg_type));
         self
     }
 
@@ -37,15 +31,13 @@ impl MsgBuilder {
     }
 
     pub fn build(self) -> Result<Msg, &'static str> {
-        let msg_type = self.msg_type.ok_or("msg_type is required")?;
+        let info = self.info.ok_or("info is required")?;
         let data = self.data.ok_or("data is required")?;
 
         Ok(Msg {
-            msg_type,
-            uid:Uuid::new_v4(),
-            data:Some(data),
-            row_data:Some(Vec::new()),
+            info,
+            data: Some(data),
+            row_data: Some(Vec::new()),
         })
     }
 }
-

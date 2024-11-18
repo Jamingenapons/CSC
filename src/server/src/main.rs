@@ -6,6 +6,9 @@ use tokio::task;
 
 use message::Msg;
 
+mod bus;
+mod subsystem;
+
 struct Server {
     listener: TcpListener,
 }

@@ -1,24 +1,39 @@
-﻿use std::fmt::{self, Debug};
+﻿use std::default;
+use std::fmt::{self, Debug};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::de::{self, MapAccess};
 use serde::ser::SerializeStruct;
 use serde::{de::Visitor, Deserialize, Serialize};
-use serde::de::{self, MapAccess};
 use uuid::Uuid;
 
 use crate::Message;
 
-#[derive(Debug, IntoPrimitive, TryFromPrimitive, Serialize, Deserialize)]
+// 一个type只能与一个结构体一对一
+#[derive(Debug, IntoPrimitive, TryFromPrimitive, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 #[repr(u64)]
 pub enum MessageType {
+    #[default]
+    None,
     Quit,
     Move,
     Join,
 }
 
-pub struct Msg {
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct MsgInfo {
     pub msg_type: MessageType,
-    pub uid: Uuid, // 用来确保发送和响应的是同一条消息
+    pub uid: Uuid,
+}
+
+impl MsgInfo {
+    pub fn new(msg_type:MessageType) -> Self {
+        Self { msg_type, uid: Uuid::new_v4() }
+    }
+}
+
+pub struct Msg {
+    pub info: MsgInfo,
     pub data: Option<Box<dyn Message>>,
     pub row_data: Option<Vec<u8>>,
 }
@@ -26,8 +41,7 @@ pub struct Msg {
 impl Debug for Msg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Msg")
-            .field("msg_type", &self.msg_type)
-            .field("uid", &self.uid)
+            .field("info", &self.info)
             .field("data", &"Box<dyn Message>") // 这里手动处理
             .field("row_data", &self.row_data)
             .finish()
@@ -40,8 +54,7 @@ impl Serialize for Msg {
         S: serde::Serializer,
     {
         let mut state = serializer.serialize_struct("Msg", 4)?;
-        state.serialize_field("msg_type", &self.msg_type)?;
-        state.serialize_field("uid", &self.uid)?;
+        state.serialize_field("info", &self.info)?;
 
         // 将 data 转换为 row_data
         if let Some(data) = &self.data {
@@ -58,7 +71,11 @@ impl<'de> Deserialize<'de> for Msg {
     where
         D: serde::Deserializer<'de>,
     {
-        enum Field { MsgType, Uid, Data, RowData }
+        enum Field {
+            Info,
+            Data,
+            RowData,
+        }
 
         impl<'de> Deserialize<'de> for Field {
             fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
@@ -71,7 +88,7 @@ impl<'de> Deserialize<'de> for Msg {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`msg_type`, `uid`, `data`, or `row_data`")
+                        formatter.write_str("`info`, `data`, or `row_data`")
                     }
 
                     fn visit_str<E>(self, value: &str) -> Result<Field, E>
@@ -79,11 +96,13 @@ impl<'de> Deserialize<'de> for Msg {
                         E: de::Error,
                     {
                         match value {
-                            "msg_type" => Ok(Field::MsgType),
-                            "uid" => Ok(Field::Uid),
+                            "info" => Ok(Field::Info),
                             "data" => Ok(Field::Data),
                             "row_data" => Ok(Field::RowData),
-                            _ => Err(de::Error::unknown_field(value, &["msg_type", "uid", "data", "row_data"])),
+                            _ => Err(de::Error::unknown_field(
+                                value,
+                                &["msg_type", "uid", "data", "row_data"],
+                            )),
                         }
                     }
                 }
@@ -105,24 +124,17 @@ impl<'de> Deserialize<'de> for Msg {
             where
                 V: MapAccess<'de>,
             {
-                let mut msg_type = None;
-                let mut uid = None;
+                let mut info = None;
                 let mut data = None;
                 let mut row_data = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
-                        Field::MsgType => {
-                            if msg_type.is_some() {
-                                return Err(de::Error::duplicate_field("msg_type"));
+                        Field::Info => {
+                            if info.is_some() {
+                                return Err(de::Error::duplicate_field("info"));
                             }
-                            msg_type = Some(map.next_value()?);
-                        }
-                        Field::Uid => {
-                            if uid.is_some() {
-                                return Err(de::Error::duplicate_field("uid"));
-                            }
-                            uid = Some(map.next_value()?);
+                            info = Some(map.next_value()?);
                         }
                         Field::Data => {
                             // 确保 data 为 None
@@ -137,13 +149,11 @@ impl<'de> Deserialize<'de> for Msg {
                     }
                 }
 
-                let msg_type = msg_type.ok_or_else(|| de::Error::missing_field("msg_type"))?;
-                let uid = uid.ok_or_else(|| de::Error::missing_field("uid"))?;
+                let info = info.ok_or_else(|| de::Error::missing_field("info"))?;
                 let row_data = row_data.ok_or_else(|| de::Error::missing_field("row_data"))?;
 
                 Ok(Msg {
-                    msg_type,
-                    uid,
+                    info,
                     data,
                     row_data: Some(row_data),
                 })
@@ -153,3 +163,49 @@ impl<'de> Deserialize<'de> for Msg {
         deserializer.deserialize_struct("Msg", &["msg_type", "uid", "data", "row_data"], MsgVisitor)
     }
 }
+
+impl Msg {
+    pub fn new() -> Self {
+        Msg {
+            info: MsgInfo::default(),
+            data: None,
+            row_data: None,
+        }
+    }
+
+    pub fn set_msg_type(&mut self, msg_type: MessageType) {
+        self.info = MsgInfo::default();
+    }
+
+    pub fn set_data<T: Message + 'static>(&mut self, data: T) {
+        let data = Box::new(data);
+        self.data = Some(data);
+    }
+
+    pub fn set_row_data(&mut self, row_data: Vec<u8>) {
+        self.row_data = Some(row_data);
+    }
+
+    pub fn get_msg_type(&self) -> MessageType {
+        self.info.msg_type.clone()
+    }
+
+    pub fn get_uid(&self) -> Uuid {
+        self.info.uid.clone()
+    }
+
+    pub fn get_data<T: Message + for<'de> Deserialize<'de>>(&self) -> Option<T> {
+        if let Some(data) = &self.row_data {
+            serde_json::from_slice(data).ok()
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for Msg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

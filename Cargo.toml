@@ -4,7 +4,7 @@ members = [
     "src/server",
     "src/message"
     # "proto"
-]
+, "src/subsystem"]
 
 resolver = "2"
 
