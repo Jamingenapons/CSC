@@ -1,4 +1,4 @@
-﻿use std::{any::Any, fmt::Debug};
+﻿pub(crate) use std::{any::Any, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +49,11 @@ impl EventManager {
         self.events.iter().map(|e| &**e)
     }
 
+    /// Pops the last event from the manager.
+    pub fn pop(&mut self) -> Option<Box<dyn Event>> {
+        self.events.pop()
+    }
+    
     /// Clears all events from the manager.
     pub fn clear(&mut self) {
         self.events.clear();

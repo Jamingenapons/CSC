@@ -1,5 +1,4 @@
-﻿use std::default;
-use std::fmt::{self, Debug};
+﻿use std::fmt::{self, Debug};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::de::{self, MapAccess};

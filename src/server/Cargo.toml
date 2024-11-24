@@ -8,3 +8,5 @@ tokio ={ workspace = true}
 message = { path = "../message" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tokio-serial = { version = "5", features = ["rt"] }
+tokio-modbus = { version = "0.15", features = ["rtu"] }

@@ -1,4 +1,4 @@
-﻿mod quit;
+﻿pub(crate) mod quit;
 mod motor;
 
 
